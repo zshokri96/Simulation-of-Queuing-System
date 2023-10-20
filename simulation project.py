@@ -1,0 +1,312 @@
+import json
+import math
+import random
+import pandas as pd
+
+
+# import  matplotlib as p
+# import matplotlib.pyplot as plt
+import  numpy as np
+
+
+def event_entrance(FEL, state, t, p):
+    if (state['num_of_idle_servers'] == 0):
+        state['failed_messages'] += 1
+
+
+
+
+    else:
+        k = choose_server(FEL, state, t, p)
+
+        FEL_maker(FEL, state, 'end_of_service', t, k)
+        state['server_busy'][k] = 1
+        state['num_of_idle_servers'] -= 1
+
+        state['total_served_messages'] += 1
+        state['served_messages'][k] += 1
+
+        if (t >= state['cold_time']):
+        # if state['cold'] == 1:
+            state['total_served_messages_cold_passed'] += 1
+            state['served_messages_cold_passed'][k] += 1
+        result['total_served_messages_cold_passed'] = state['total_served_messages_cold_passed']
+        result['served_messages_cold_passed'][k]=state['served_messages_cold_passed'][k]
+
+
+
+    FEL_maker(FEL, state, 'entrance', t, 0)
+
+
+# ---------------------------------------------------------------
+
+def event_end_of_service(FEL, state, t, k):
+    state['server_busy'][k] = 0
+    state['num_of_idle_servers'] += 1
+
+
+# ---------------------------------------------------------------
+
+def FEL_maker(FEL, state, event_type, t, k):
+    r = random.random()
+    event = dict()
+    event['event_type'] = event_type
+    if (event_type == 'entrance'):
+        event['event_time'] = t - 3.3 * math.log((1 - r))
+        event['server_num'] = 0
+    elif (event_type == 'end_of_service'):
+        m = state['server_mean'][k]
+        event['event_time'] = t - m * math.log((1 - r))
+        event['server_num'] = k
+    FEL.append(event)
+
+
+# ---------------------------------------------------------------
+
+def choose_server(FEL, state, t, p):
+    # Policy = Random Rule
+    if p == 0:
+        r1 = random.random()
+        random_choose = math.floor(5 * r1)
+        while (state['server_busy'][random_choose] == 1):
+            if (random_choose == 4):
+                random_choose = 0
+            else:
+                random_choose += 1
+        k = random_choose
+    # Policy = shortest Idle Rule
+    elif p == 1:
+
+        min_idle_time = 999999999;
+        min_idle_time_ind = 0;
+        for i in range(5):
+            if (state['server_busy'][i] == 0):
+                if (state['server_idle_time'][i] < min_idle_time):
+                    min_idle_time = state['server_idle_time'][i]
+                    min_idle_time_ind = state['server_num'][i]
+        k = min_idle_time_ind
+    # Policy = longest Idle Rule
+    elif p == 2:
+        max_idle_time = 0;
+        max_idle_time_ind = 0;
+        for i in range(5):
+            if (state['server_busy'][i] == 0):
+                if (state['server_idle_time'][i] > max_idle_time):
+                    max_idle_time = state['server_idle_time'][i]
+                    max_idle_time_ind = state['server_num'][i]
+        k = max_idle_time_ind
+    # Policy = Longest Total Idle Rule
+    elif p == 3:
+        max_total_idle_time = 0;
+        max_total_idle_time_ind = 0;
+        for i in range(5):
+            if (state['server_busy'][i] == 0):
+                if (state['server_total_idle_time'][i] >= max_total_idle_time):
+                    max_total_idle_time = state['server_total_idle_time'][i]
+                    max_total_idle_time_ind = state['server_num'][i]
+        k = max_total_idle_time_ind
+
+    # print("serever ", k, "chosen")
+    return k
+
+
+# ---------------------------------------------------------------
+
+def init():
+    p =3
+    # int(input('Please Enter Policy(0,1,2,3)'))
+    T =1000
+    # int(input('Please Enter Simulation Time'))
+
+    state = dict()
+    state['num_of_idle_servers'] = 5
+    state["server_num"] = [0, 1, 2, 3, 4]
+    state['server_busy'] = [0, 0, 0, 0, 0]
+    state['server_mean'] = [6, 8, 10, 12, 14]
+
+    state["server_idle_time"] = [0, 0, 0, 0, 0]
+    state["server_total_idle_time"] = [0, 0, 0, 0, 0]
+    state["server_total_idle_param"] = [0, 0, 0, 0, 0]
+    state["server_total_idle_param_prev"] = [0, 0, 0, 0, 0]
+    state["server_total_idle_chng"] = [0, 0, 0, 0, 0]
+    state['total_chng'] = 0
+    state['failed_messages'] = 0
+    state['total_served_messages'] = 0
+    state['served_messages'] = [0, 0, 0, 0, 0]
+
+    state['cold_time'] = 95
+    state['cold'] = 0
+    state["server_idle_time_cold_passed"] = [0, 0, 0, 0, 0]
+    state["server_total_idle_time_cold_passed"] = [0, 0, 0, 0, 0]
+
+    state['served_messages_cold_passed'] = [0, 0, 0, 0, 0]
+    state['total_served_messages_cold_passed'] = 0
+
+    FEL = []
+    FEL_maker(FEL, state, 'entrance', 0, 0)
+    return state, T, FEL, p
+
+
+# ---------------------------------------------------------------
+
+result=dict()
+result["server_total_idle_time_cold_passed"]=[0 , 0 , 0 , 0 , 0]
+result['total_served_messages_cold_passed'] = 0
+result['served_messages_cold_passed']=[0 , 0 , 0 , 0 , 0]
+result['productivity']=[0 , 0 , 0 , 0 , 0]
+def main():
+    print("YYYYY")
+    s, T, FEL, p = init()
+    print("YYYYY")
+    t = 0
+    t_prev = 0
+    counter = 0
+    cold = 0
+    cold_passed = 0
+    datatable= []
+    while t < T:
+        counter += 1
+        sorted_fel = sorted(FEL, key=lambda y: y['event_time'])
+        current_event = sorted_fel[0]
+        t = current_event["event_time"]
+        row = dict()
+        if (t < T):
+            # print(FEL)
+            # -------------------------
+            # if (t >= s['cold_time']):
+            #     if (cold_passed == 0):
+            #         print('######################')
+            #         print("COLD TIME = ", t, )
+            #         print('######################')
+            #         cold_passed = 1
+            # -------------------------
+            if (t >= s['cold_time']):
+            # if s['cold'] == 1 :
+                for i in range(5):
+                    if (s['server_busy'][i] == 0):
+                        s['server_idle_time_cold_passed'][i] += t - t_prev
+                        s['server_total_idle_time_cold_passed'][i] += t - t_prev
+                    else:
+                        s['server_idle_time_cold_passed'][i] = 0
+
+
+
+                for i in range(5):
+                    result['server_total_idle_time_cold_passed'][i] = s['server_total_idle_time_cold_passed'][i]
+
+            # print(result['total_served_messages_cold_passed'])
+            # ------------------
+
+            s['total_chng'] = 0
+            for i in range(5):
+                if (s['server_busy'][i] == 0):
+                    s['server_idle_time'][i] += t - t_prev
+                    s['server_total_idle_time'][i] += t - t_prev
+                else:
+                    s['server_idle_time'][i] = 0
+
+                s['server_total_idle_param_prev'][i] = s['server_total_idle_param'][i]
+                s['server_total_idle_param'][i] = (s['server_total_idle_time'][i] / t) * 100
+                s['server_total_idle_chng'][i] = s['server_total_idle_param'][i] - s['server_total_idle_param_prev'][i]
+
+                s['total_chng'] +=  (s['server_total_idle_chng'][i] **2)
+                # print ( i , "chng is", s['server_total_idle_chng'][i] , '%')
+
+            # print(i, "Total chng is", math.sqrt(s['total_chng']) / 5, '%')
+            if s['cold'] == 0:
+                if (s['total_chng'] <= 0.01) :
+                    # print("COLD" , t)
+                    s['cold'] = 1
+
+            #   print("server", i, " idle  =", (s['server_total_idle_time'][i] / t) * 100, '%')
+
+            #--------------
+
+
+            # ------------------
+            if current_event['event_type'] == 'entrance':
+                event_entrance(FEL, s, t, p)
+            elif current_event['event_type'] == 'end_of_service':
+                event_end_of_service(FEL, s, t, current_event['server_num'])
+        else:
+            current_event['event_time'] = T
+            current_event['event_type'] = 'End Of Simulation'
+
+
+            # ------------------
+            for l in range(5):
+                if result["total_served_messages_cold_passed"]  > 0:
+                    result['productivity'][l]=(result['served_messages_cold_passed'][l] /result['total_served_messages_cold_passed']) * 100
+            for i in range(5):
+                if (s['server_busy'][i] == 0):
+                    s['server_idle_time_cold_passed'][i] += T - t_prev
+                    s['server_total_idle_time_cold_passed'][i] += T - t_prev
+                else:
+                    s['server_idle_time_cold_passed'][i] = 0
+
+            # ------------------
+
+
+            for i in range(5):
+                if (s['server_busy'][i] == 0):
+
+                    s['server_idle_time'][i] += T - t_prev
+                    s['server_total_idle_time'][i] += T - t_prev
+                else:
+                    s['server_idle_time'][i] = 0
+
+            #     print("server", i, " idle  =", (s['server_total_idle_time'][i] / T) * 100, '%')
+
+            # ------------------
+        # for i in range(5):
+        #     row['server_idle_time' + str(i)] = s['server_idle_time'][i]
+        #     row['server_total_idle_time' + str(i)] = s['server_total_idle_time'][i]
+        #     row['server_idle_time' + str(i)] = s['server_idle_time'][i]
+        #     row['server_total_idle_time' + str(i)] = s['server_total_idle_time'][i]
+        # datatable.append(row)
+
+
+        # -------------------------------
+        # for  i in range(5) :
+            # if (s['total_served_messages'] > 0):
+            #     print("server", i, " served messages  =", (s['served_messages'][i] / s['total_served_messages']) * 100, '%')
+        # -------------------
+        FEL.remove(current_event)
+        t_prev = t
+
+
+        # ----------------------------------------------------------------
+        # #Print Events
+        # if (current_event['event_type'] == 'entrance'):
+        #     # print ("Event", counter,": at", current_event['event_time'],current_event['event_type'])
+        # elif (current_event['event_type'] == 'end_of_service'):
+        #     # print ("Event", counter,": at", current_event['event_time'],current_event['event_type']," by sever ", current_event['server_num'])
+        # else:
+        # print ("Event", counter,": at", current_event['event_time'], current_event['event_type'])
+        # ------------------------
+
+    # dataform = pd.read_json(str(json.dumps(datatable)))
+    # print(dataform)
+    # dataform.to_excel("output.xlsx", index = True)
+
+table=dict()
+datatable=[]
+# for k in range(700):
+for k in range(700):
+   main()
+   table=dict()
+   for i in range(5):
+
+      table['server_total_idle_time'+ str(i)] = result["server_total_idle_time_cold_passed"][i]
+      table['productivity' + str(i)] = result['productivity'][i]
+   datatable.append(table)
+
+dataform = pd.read_json(str(json.dumps(datatable)))
+
+    # print(dataform)
+dataform.to_excel("output.xlsx", index = True)
+
+
+#     for i in range(5):
+#         print("total idle time for",i,"is=", result['server_total_idle_time_cold_passed'][i],"and","total productivity is=", result["productivity"][i])
+# # pip install pandas
